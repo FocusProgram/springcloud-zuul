@@ -1,6 +1,7 @@
 package com.api.orderservice.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -9,11 +10,17 @@ import org.springframework.web.bind.annotation.RestController;
  * @Description:
  */
 @RestController
+@RequestMapping("order")
 public class OrderController {
 
-    @GetMapping("/demo")
-    public String getDemo(){
+    @GetMapping("/getOrder")
+    public String getOrder(){
         return "order";
+    }
+
+    @GetMapping("getFilter")
+    public String getFilter(){
+        return "filter";
     }
 
 }

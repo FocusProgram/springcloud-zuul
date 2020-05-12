@@ -23,9 +23,22 @@ server:
   port: 8080
 
 zuul:
+  # 前缀，可以用来做版本控制
+  prefix: /v1
+  # 禁用默认路由，执行配置的路由
+  ignored-services: "*"
   routes:
+    # 指定路由名称
     order:
+      # 指定路由访问路径
       path: /order/**
+      # 指定向下游服务转发请求头中携带的信息，例如head:tx-token
       sensitiveHeaders:
+      # 自定义路由指向服务id
       serviceId: order-service
+    # 路由排除访问路径
+    ignored-patterns:
+      - /order/getFilter/*
+  # 添加代理头
   add-proxy-headers: true
+
