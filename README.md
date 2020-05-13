@@ -42,6 +42,48 @@
 > - Outbound Filters, 出站过滤器在从源获得响应之后执行，可用于度量、修饰对用户的响应或添加自定义头
 > 
 > 还有两种类型的过滤器: 同步和异步。 因为我们是在事件循环中运行，所以永远不要在过滤器中阻塞是至关重要的。 如果要阻塞，请在单独线程池中的异步过滤器中进行阻塞，否则可以使用同步过滤器。
+>
+> zuul的核心是一系列的filters, 其作用可以类比Servlet框架的Filter，或者AOP。
+>
+> zuul把Request route到 用户处理逻辑 的过程中，这些filter参与一些过滤处理，比如Authentication，Load Shedding等。 
+
+![](http://image.focusprogram.top/20200513114110.png)
+
+**Zuul提供了一个框架，可以对过滤器进行动态的加载，编译，运行。**
+
+> Zuul的过滤器之间没有直接的相互通信，他们之间通过一个RequestContext的静态类来进行数据传递的。RequestContext类中有ThreadLocal变量来记录每个Request所需要传递的数据。
+>
+> Zuul的过滤器是由Groovy写成，这些过滤器文件被放在Zuul Server上的特定目录下面，Zuul会定期轮询这些目录，修改过的过滤器会动态的加载到Zuul Server中以便过滤请求使用。
+> 
+> 下面有几种标准的过滤器类型：
+>
+> - Zuul大部分功能都是通过过滤器来实现的。Zuul中定义了四种标准过滤器类型，这些过滤器类型对应于请求的典型生命周期。
+>
+> - (1) PRE：这种过滤器在请求被路由之前调用。我们可利用这种过滤器实现身份验证、在集群中选择请求的微服务、记录调试信息等。
+>
+> - (2) ROUTING：这种过滤器将请求路由到微服务。这种过滤器用于构建发送给微服务的请求，并使用Apache HttpClient或Netfilx Ribbon请求微服务。
+>
+> - (3) POST：这种过滤器在路由到微服务以后执行。这种过滤器可用来为响应添加标准的HTTP Header、收集统计信息和指标、将响应从微服务发送给客户端等。
+>
+> - (4) ERROR：在其他阶段发生错误时执行该过滤器。
+
+**内置的特殊过滤器**
+
+> zuul还提供了一类特殊的过滤器，分别为：StaticResponseFilter和SurgicalDebugFilter
+>
+> StaticResponseFilter：StaticResponseFilter允许从Zuul本身生成响应，而不是将请求转发到源。
+>
+> SurgicalDebugFilter：SurgicalDebugFilter允许将特定请求路由到分隔的调试集群或主机。
+
+**自定义的过滤器**
+
+> 除了默认的过滤器类型，Zuul还允许我们创建自定义的过滤器类型。
+>
+> 例如，我们可以定制一种STATIC类型的过滤器，直接在Zuul中生成响应，而不将请求转发到后端的微服务。
+
+**过滤器的生命周期**
+
+![](http://image.focusprogram.top/20200513114152.png)
 
 # 5. springcloud集成zuul
 
@@ -65,8 +107,8 @@
 ```
 eureka:
   client:
-    fetchRegistry: false 
-    registerWithEureka: false
+    fetchRegistry: false #自己提供服务，所有设置为false
+    registerWithEureka: false #不需要去检索服务，所有设置为false
 server:
   port: 9000
 spring:
@@ -120,12 +162,16 @@ spring:
 
 eureka:
   client:
-    fetchRegistry: true
-    registerWithEureka: true 
+    fetchRegistry: true #注册到别的服务，所有设置为true
+    registerWithEureka: true #需要去检索服务，所有设置为true
     service-url:
+      defaultZone: http://localhost:9000/eureka #服务注册中心的配置内容，指定服务注册中心的位置
+  #  instance:
+  #    hostname: eureka-provider
+  #    prefer-ip-address: true #以ip地址注册到服务中心（单节点部署为分布式Eureka集群，禁止设置为true）
   server:
-    enable-self-preservation: false 
-    eviction-interval-timer-in-ms: 60000 
+    enable-self-preservation: false #是否开启自我保护模式
+    eviction-interval-timer-in-ms: 60000 #服务注册表清理间隔（单位：毫秒，默认60*1000）
 
 server:
   port: 8080
@@ -216,6 +262,64 @@ public class FallBackConfig implements FallbackProvider {
 }
 ```
 
+过滤器拦截类FilterConfig
+
+```
+@Component
+public abstract class FilterConfig extends ZuulFilter {
+
+    /**
+     * // 在进行Zuul过滤的时候可以设置其过滤执行的位置，那么此时有如下几种类型：
+     * // 1、pre：在请求发出之前执行过滤，如果要进行访问，肯定在请求前设置头信息
+     * // 2、route：在进行路由请求的时候被调用；
+     * // 3、post：在路由之后发送请求信息的时候被调用；
+     * // 4、error：出现错误之后进行调用
+     * @return
+     */
+    @Override
+    public String filterType() {
+        return "pre";
+    }
+
+    /**
+     *  设置优先级，数字越大优先级越低
+     * @return
+     */
+    @Override
+    public int filterOrder() {
+        return 0;
+    }
+
+    /**
+     * 判断是否需要过滤
+     * @return
+     */
+    @Override
+    public boolean shouldFilter() {
+        return true;
+    }
+
+    /**
+     * 执行具体的过滤操作
+     * @return
+     */
+    @Override
+    public Object run() {
+        // 获取当前请求的上下文
+        RequestContext currentContext = RequestContext.getCurrentContext() ;
+        // 认证的原始信息
+        String auth = "zulladmin";
+        // 进行一个加密的处理
+        byte[] encodedAuth = Base64.getEncoder()
+                .encode(auth.getBytes(Charset.forName("US-ASCII")));
+        // 在进行授权的头信息内容配置的时候加密的信息一定要与“Basic”之间有一个空格
+        String authHeader = "Basic " + new String(encodedAuth);
+        currentContext.addZuulRequestHeader("Authorization", authHeader);
+        return null;
+    }
+}
+```
+
 添加启动类ZuulApplication
 
 ```
@@ -249,7 +353,7 @@ public class ZuulApplication {
     <artifactId>spring-cloud-starter-openfeign</artifactId>
 </dependency>
 
-<!--        eureka-->
+<!-- eureka -->
 <dependency>
     <groupId>org.springframework.cloud</groupId>
     <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
@@ -258,6 +362,34 @@ public class ZuulApplication {
     <groupId>org.springframework.cloud</groupId>
     <artifactId>spring-cloud-starter-netflix-eureka-server</artifactId>
 </dependency>
+```
+
+添加配置文件application.yml
+
+```
+spring:
+  application:
+    name: order-service
+  redis:
+    host: 114.55.34.44
+    password: root
+
+eureka:
+  client:
+    fetchRegistry: true #注册到别的服务，所有设置为true
+    registerWithEureka: true #需要去检索服务，所有设置为true
+    service-url:
+      defaultZone: http://localhost:9000/eureka #服务注册中心的配置内容，指定服务注册中心的位置
+  #  instance:
+  #    hostname: eureka-provider
+  #    prefer-ip-address: true #以ip地址注册到服务中心（单节点部署为分布式Eureka集群，禁止设置为true）
+  server:
+    enable-self-preservation: false #是否开启自我保护模式
+    eviction-interval-timer-in-ms: 60000 #服务注册表清理间隔（单位：毫秒，默认60*1000）
+
+server:
+  port: 8081
+
 ```
 
 添加OrderController

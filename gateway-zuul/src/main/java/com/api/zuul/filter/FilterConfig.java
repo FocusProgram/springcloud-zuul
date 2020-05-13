@@ -1,19 +1,15 @@
 package com.api.zuul.filter;
 
-import com.marcosbarbero.cloud.autoconfigure.zuul.ratelimit.config.properties.RateLimitProperties;
+
 import com.netflix.zuul.ZuulFilter;
 import com.netflix.zuul.context.RequestContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.cloud.netflix.zuul.filters.Route;
-import org.springframework.cloud.netflix.zuul.filters.RouteLocator;
 import org.springframework.stereotype.Component;
-import org.springframework.web.util.UrlPathHelper;
-import javax.servlet.http.HttpServletRequest;
-import java.util.List;
+import java.nio.charset.Charset;
+import java.util.Base64;
+
 
 /**
- * Description:
+ * Description: 过滤器
  *
  * @author Mr.Kong
  * @date 2020-05-12 22:30
@@ -21,43 +17,26 @@ import java.util.List;
 @Component
 public abstract class FilterConfig extends ZuulFilter {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(FilterConfig.class) ;
-
-    private  RateLimitProperties properties;
-
-    private  RouteLocator routeLocator;
-
-    private  UrlPathHelper urlPathHelper;
-
+    /**
+     * // 在进行Zuul过滤的时候可以设置其过滤执行的位置，那么此时有如下几种类型：
+     * // 1、pre：在请求发出之前执行过滤，如果要进行访问，肯定在请求前设置头信息
+     * // 2、route：在进行路由请求的时候被调用；
+     * // 3、post：在路由之后发送请求信息的时候被调用；
+     * // 4、error：出现错误之后进行调用
+     * @return
+     */
     @Override
     public String filterType() {
         return "pre";
     }
 
+    /**
+     *  设置优先级，数字越大优先级越低
+     * @return
+     */
     @Override
     public int filterOrder() {
         return 0;
-    }
-
-    @Override
-    public Object run() {
-        RequestContext requestContext = RequestContext.getCurrentContext() ;
-        try {
-            doBizProcess(requestContext);
-        } catch (Exception e){
-            LOGGER.info("异常：{}",e.getMessage());
-        }
-        return null;
-    }
-
-    public void doBizProcess (RequestContext requestContext) throws Exception {
-        HttpServletRequest request = requestContext.getRequest() ;
-        String reqUri = request.getRequestURI() ;
-        if (!reqUri.contains("getAuthorInfo")){
-            requestContext.setSendZuulResponse(false);
-            requestContext.setResponseStatusCode(401);
-            requestContext.getResponse().getWriter().print("Path Is Error...");
-        }
     }
 
     /**
@@ -66,19 +45,25 @@ public abstract class FilterConfig extends ZuulFilter {
      */
     @Override
     public boolean shouldFilter() {
-        return properties.isEnabled() && !policy(route()).isEmpty();
+        return true;
     }
 
-    Route route() {
-        String requestURI = urlPathHelper.getPathWithinApplication(RequestContext.getCurrentContext().getRequest());
-        return routeLocator.getMatchingRoute(requestURI);
-    }
-
-    protected List<RateLimitProperties.Policy> policy(final Route route) {
-        if (route != null) {
-            // 根据路由id来进行匹配
-            return properties.getPolicies(route.getId());
-        }
-        return properties.getDefaultPolicyList();
+    /**
+     * 执行具体的过滤操作
+     * @return
+     */
+    @Override
+    public Object run() {
+        // 获取当前请求的上下文
+        RequestContext currentContext = RequestContext.getCurrentContext() ;
+        // 认证的原始信息
+        String auth = "zulladmin";
+        // 进行一个加密的处理
+        byte[] encodedAuth = Base64.getEncoder()
+                .encode(auth.getBytes(Charset.forName("US-ASCII")));
+        // 在进行授权的头信息内容配置的时候加密的信息一定要与“Basic”之间有一个空格
+        String authHeader = "Basic " + new String(encodedAuth);
+        currentContext.addZuulRequestHeader("Authorization", authHeader);
+        return null;
     }
 }

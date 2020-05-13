@@ -8,16 +8,16 @@ spring:
 
 eureka:
   client:
-    fetchRegistry: true #\u6CE8\u518C\u5230\u522B\u7684\u670D\u52A1\uFF0C\u6240\u6709\u8BBE\u7F6E\u4E3Atrue
-    registerWithEureka: true #\u9700\u8981\u53BB\u68C0\u7D22\u670D\u52A1\uFF0C\u6240\u6709\u8BBE\u7F6E\u4E3Atrue
+    fetchRegistry: true #注册到别的服务，所有设置为true
+    registerWithEureka: true #需要去检索服务，所有设置为true
     service-url:
-      defaultZone: http://localhost:9000/eureka #\u670D\u52A1\u6CE8\u518C\u4E2D\u5FC3\u7684\u914D\u7F6E\u5185\u5BB9\uFF0C\u6307\u5B9A\u670D\u52A1\u6CE8\u518C\u4E2D\u5FC3\u7684\u4F4D\u7F6E
+      defaultZone: http://localhost:9000/eureka #服务注册中心的配置内容，指定服务注册中心的位置
   #  instance:
   #    hostname: eureka-provider
-  #    prefer-ip-address: true #\u4EE5ip\u5730\u5740\u6CE8\u518C\u5230\u670D\u52A1\u4E2D\u5FC3\uFF08\u5355\u8282\u70B9\u90E8\u7F72\u4E3A\u5206\u5E03\u5F0FEureka\u96C6\u7FA4\uFF0C\u7981\u6B62\u8BBE\u7F6E\u4E3Atrue\uFF09
+  #    prefer-ip-address: true #以ip地址注册到服务中心（单节点部署为分布式Eureka集群，禁止设置为true）
   server:
-    enable-self-preservation: false #\u662F\u5426\u5F00\u542F\u81EA\u6211\u4FDD\u62A4\u6A21\u5F0F
-    eviction-interval-timer-in-ms: 60000 #\u670D\u52A1\u6CE8\u518C\u8868\u6E05\u7406\u95F4\u9694\uFF08\u5355\u4F4D\uFF1A\u6BEB\u79D2\uFF0C\u9ED8\u8BA460*1000\uFF09
+    enable-self-preservation: false #是否开启自我保护模式
+    eviction-interval-timer-in-ms: 60000 #服务注册表清理间隔（单位：毫秒，默认60*1000）
 
 server:
   port: 8080
